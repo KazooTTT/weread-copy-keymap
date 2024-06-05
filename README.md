@@ -11,3 +11,7 @@
 [下载地址](https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap)
 
 [源代码](https://github.com/KazooTTT/weread-copy-keymap)
+
+---
+
+本项目使用模板为 [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey)
