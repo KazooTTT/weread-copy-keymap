@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         在微信读书网页版中新增复制快捷键
 // @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
-// @version      0.0.1
+// @version      0.0.2
 // @author       KazooTTT
-// @description  在微信读书网页版中新增复制快捷键
+// @description  在微信读书网页版中新增复制快捷键, 在 windows 下，快捷键为`Ctrl + C`，在 mac 下，快捷键为`Cmd + C`。
 // @license      MIT
 // @icon         https://weread.qq.com/favicon.ico
 // @homepage     https://github.com/KazooTTT/wereadCopyKeyMap
