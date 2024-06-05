@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         weread-copy-keymap
-// @namespace    weread-copy-keymap
+// @name         在微信读书网页版中新增复制快捷键
+// @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
 // @version      0.0.1
 // @author       KazooTTT
 // @description  在微信读书网页版中新增复制快捷键

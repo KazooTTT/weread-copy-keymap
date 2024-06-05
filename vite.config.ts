@@ -10,8 +10,9 @@ export default defineConfig({
     monkey({
       entry: 'src/main.ts',
       userscript: {
+        name: "在微信读书网页版中新增复制快捷键",
         icon: 'https://weread.qq.com/favicon.ico',
-        namespace: 'weread-copy-keymap',
+        namespace: 'https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap',
         match: ['https://weread.qq.com/web/reader/*'],
         version: '0.0.1',
         description: "在微信读书网页版中新增复制快捷键",
