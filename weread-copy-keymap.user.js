@@ -4,6 +4,7 @@
 // @version      0.0.1
 // @author       KazooTTT
 // @description  在微信读书网页版中新增复制快捷键
+// @license      MIT
 // @icon         https://weread.qq.com/favicon.ico
 // @homepage     https://github.com/KazooTTT/wereadCopyKeyMap
 // @match        https://weread.qq.com/web/reader/*

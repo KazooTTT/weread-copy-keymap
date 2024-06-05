@@ -16,7 +16,8 @@ export default defineConfig({
         version: '0.0.1',
         description: "在微信读书网页版中新增复制快捷键",
         author: "KazooTTT",
-        homepage: "https://github.com/KazooTTT/wereadCopyKeyMap"
+        homepage: "https://github.com/KazooTTT/wereadCopyKeyMap",
+        license: 'MIT',
       },
     }),
   ],
