@@ -6,7 +6,7 @@
 // @description  在微信读书网页版中新增复制快捷键, 在 windows 下，快捷键为`Ctrl + C`，在 mac 下，快捷键为`Cmd + C`。
 // @license      MIT
 // @icon         https://weread.qq.com/favicon.ico
-// @homepage     https://github.com/KazooTTT/wereadCopyKeyMap
+// @homepage     https://github.com/KazooTTT/weread-copy-keymap
 // @match        https://weread.qq.com/web/reader/*
 // ==/UserScript==
 
