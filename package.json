@@ -1,8 +1,12 @@
 {
   "name": "weread-copy-keymap",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.3",
   "type": "module",
+  "license": "MIT",
+  "author": "KazooTTT",
+  "homepage": "https://github.com/KazooTTT/wereadCopyKeyMap",
+  "description": "在微信读书网页版中新增复制快捷键, 在 windows 下，快捷键为`Ctrl + C`，在 mac 下，快捷键为`Cmd + C`。",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
