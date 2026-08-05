@@ -1,58 +1,293 @@
 // @ts-ignore isolatedModules
 
-let hasRun = false;
+type GMResponse = {
+  status: number;
+  response: Blob;
+};
+
+declare function GM_xmlhttpRequest(details: {
+  method: "GET";
+  url: string;
+  responseType: "blob";
+  timeout: number;
+  onload: (response: GMResponse) => void;
+  ontimeout: () => void;
+  onerror: () => void;
+}): void;
+
+const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+const COPY_KEY_TEXT = isMac ? "⌘ + C" : "Ctrl + C";
+const COPY_AND_HIGHLIGHT_KEY_TEXT = isMac ? "⌘ + X" : "Ctrl + X";
+const BUTTON_GROUP_CLASS = "wr-img-btn-group";
+
+let pending = false;
+
+const addKeyMapTitleToButton = (
+  button: HTMLButtonElement | null,
+  text: string
+) => {
+  const textNode = button?.querySelector<HTMLElement>(".toolbarItem_text");
+  if (!textNode) return;
+
+  let keyNode = textNode.querySelector<HTMLElement>(
+    ".toolbarItem_text_keymap"
+  );
+  if (!keyNode) {
+    keyNode = document.createElement("span");
+    keyNode.className = "toolbarItem_text_keymap";
+    keyNode.style.marginLeft = "2px";
+    textNode.append(keyNode);
+  }
+  keyNode.textContent = text;
+};
 
 const initKeyMap = () => {
-  const copyButton = document.querySelector(
-    "#routerView > div > div.app_content > div.wr_various_font_provider_wrapper > div > div.renderTargetContainer > div.reader_toolbar_container > div > div > button.toolbarItem.wr_copy"
+  addKeyMapTitleToButton(
+    document.querySelector<HTMLButtonElement>("button.toolbarItem.wr_copy"),
+    COPY_KEY_TEXT
   );
+  addKeyMapTitleToButton(
+    document.querySelector<HTMLButtonElement>("button.toolbarItem.underlineBg"),
+    COPY_AND_HIGHLIGHT_KEY_TEXT
+  );
+};
 
-  const addKeyMapTitleToButton = (
-    button: HTMLButtonElement,
-    textToAdd: string
-  ) => {
-    const toolbarItem_text = button.querySelector(".toolbarItem_text");
-    const toolbarItem_text_keymap = document.createElement("span");
-    toolbarItem_text_keymap.className =
-      "toolbarItem_text toolbarItem_text_keymap";
-    toolbarItem_text_keymap.innerText = textToAdd;
-    toolbarItem_text_keymap.style.marginLeft = "2px";
-    toolbarItem_text?.append(toolbarItem_text_keymap);
-  };
+const requestBlob = (url: string) =>
+  new Promise<Blob>((resolve, reject) => {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url,
+      responseType: "blob",
+      timeout: 30_000,
+      onload: ({ status, response }) => {
+        if (status >= 200 && status < 300 && response instanceof Blob) {
+          resolve(response);
+          return;
+        }
+        reject(new Error(`图片请求失败（HTTP ${status}）`));
+      },
+      ontimeout: () => reject(new Error("图片请求超时")),
+      onerror: () => reject(new Error("图片请求失败")),
+    });
+  });
 
-  if (copyButton) {
-    // detect is windows or mac
-    const platform = navigator.platform.toLowerCase();
+const blobToPng = async (sourceBlob: Blob) => {
+  if (sourceBlob.type === "image/png") return sourceBlob;
 
-    let textToAdd = "";
-    if (platform.includes("mac")) {
-      textToAdd = "⌘ + c";
-    } else {
-      textToAdd = "ctrl + c";
-    }
-    addKeyMapTitleToButton(copyButton as HTMLButtonElement, textToAdd);
+  const bitmap = await createImageBitmap(sourceBlob);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("无法创建 Canvas 2D 上下文");
 
-    hasRun = true;
-    // after run, cancel the observer
-
-    observer.disconnect();
+    context.drawImage(bitmap, 0, 0);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) =>
+          blob ? resolve(blob) : reject(new Error("图片转换为 PNG 失败")),
+        "image/png"
+      );
+    });
+  } finally {
+    bitmap.close();
   }
 };
 
-const observer = new MutationObserver((mutationsList) => {
-  for (let mutation of mutationsList) {
-    if (mutation.type === "childList" && !hasRun) {
-      const targetNode = document.querySelector(
-        ".renderTargetContainer > .reader_toolbar_container .reader_toolbar_content"
-      );
-
-      if (targetNode) {
-        initKeyMap();
-      }
-    }
+const loadPngBlob = async (imageUrl: string) => {
+  const sourceBlob = await requestBlob(imageUrl);
+  if (!sourceBlob.type.startsWith("image/")) {
+    throw new Error(
+      `服务器返回的不是图片（${sourceBlob.type || "未知类型"}）`
+    );
   }
+  return blobToPng(sourceBlob);
+};
+
+const setButtonStatus = (
+  button: HTMLButtonElement,
+  text: string,
+  resetAfter = 0
+) => {
+  button.dataset.originalText ||= button.textContent || "";
+  button.textContent = text;
+  if (!resetAfter) return;
+
+  window.setTimeout(() => {
+    button.textContent = button.dataset.originalText || "";
+    button.disabled = false;
+  }, resetAfter);
+};
+
+const copyImage = async (imageUrl: string, button: HTMLButtonElement) => {
+  if (!window.ClipboardItem || !navigator.clipboard?.write) {
+    setButtonStatus(button, "浏览器不支持图片剪贴板", 2_000);
+    return;
+  }
+
+  button.disabled = true;
+  setButtonStatus(button, "复制中…");
+
+  try {
+    // 在点击产生的用户授权尚有效时立即调用 write；图片可异步下载和转换。
+    const item = new ClipboardItem({ "image/png": loadPngBlob(imageUrl) });
+    await navigator.clipboard.write([item]);
+    setButtonStatus(button, "已复制图片", 1_500);
+  } catch (error) {
+    console.error("[Weread image copy]", error);
+    setButtonStatus(
+      button,
+      error instanceof DOMException && error.name === "NotAllowedError"
+        ? "请允许剪贴板权限"
+        : "复制失败",
+      2_000
+    );
+  }
+};
+
+const fileNameFromUrl = (imageUrl: string, mimeType: string) => {
+  try {
+    const name = decodeURIComponent(
+      new URL(imageUrl).pathname.split("/").pop() || ""
+    );
+    if (name) return name;
+  } catch {
+    // 使用默认文件名。
+  }
+  return mimeType === "image/png" ? "weread-image.png" : "weread-image.jpg";
+};
+
+const downloadImage = async (imageUrl: string, button: HTMLButtonElement) => {
+  button.disabled = true;
+  setButtonStatus(button, "下载中…");
+
+  try {
+    const blob = await requestBlob(imageUrl);
+    if (!blob.type.startsWith("image/")) {
+      throw new Error("服务器返回的不是图片");
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = fileNameFromUrl(imageUrl, blob.type);
+    anchor.hidden = true;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    setButtonStatus(button, "已开始下载", 1_500);
+  } catch (error) {
+    console.error("[Weread image download]", error);
+    setButtonStatus(button, "下载失败", 2_000);
+  }
+};
+
+const createButton = (text: string, color: string, hoverColor: string) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = text;
+  button.style.cssText = `
+    background: ${color}; color: #fff; border: 0; padding: 7px 15px;
+    border-radius: 16px; font-size: 13px; line-height: 20px; cursor: pointer;
+  `;
+  button.addEventListener("mouseenter", () => {
+    if (!button.disabled) button.style.background = hoverColor;
+  });
+  button.addEventListener("mouseleave", () => {
+    button.style.background = color;
+  });
+  return button;
+};
+
+const initImageActions = () => {
+  const viewer = document.querySelector<HTMLElement>(".viewer-canvas");
+  const image = viewer?.querySelector<HTMLImageElement>("img");
+  if (!viewer || !image || viewer.querySelector(`.${BUTTON_GROUP_CLASS}`)) {
+    return;
+  }
+
+  if (getComputedStyle(viewer).position === "static") {
+    viewer.style.position = "relative";
+  }
+
+  const group = document.createElement("div");
+  group.className = BUTTON_GROUP_CLASS;
+  group.style.cssText = `
+    position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
+    z-index: 2147483647; display: flex; gap: 12px; padding: 8px 16px;
+    border-radius: 22px; background: rgba(0, 0, 0, .75);
+    backdrop-filter: blur(5px);
+  `;
+  for (const type of ["pointerdown", "mousedown", "mouseup", "click"]) {
+    group.addEventListener(type, (event) => event.stopPropagation());
+  }
+
+  const copyButton = createButton("复制图片", "#388e3c", "#2e7d32");
+  copyButton.addEventListener("click", () =>
+    copyImage(image.currentSrc || image.src, copyButton)
+  );
+
+  const downloadButton = createButton("下载图片", "#1976d2", "#1565c0");
+  downloadButton.addEventListener("click", () =>
+    downloadImage(image.currentSrc || image.src, downloadButton)
+  );
+
+  group.append(copyButton, downloadButton);
+  viewer.append(group);
+};
+
+const scheduleInit = () => {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    initKeyMap();
+    initImageActions();
+  });
+};
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+    const hasPrimaryModifier = isMac ? event.metaKey : event.ctrlKey;
+    if (!hasPrimaryModifier || event.shiftKey || event.altKey) return;
+
+    const key = event.key.toLowerCase();
+
+    if (key === "c") {
+      const imageCopyButton = document.querySelector<HTMLButtonElement>(
+        `.${BUTTON_GROUP_CLASS} button:first-child`
+      );
+      if (!imageCopyButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      imageCopyButton.click();
+      return;
+    }
+
+    if (key !== "x") return;
+
+    const textCopyButton = document.querySelector<HTMLButtonElement>(
+      "button.toolbarItem.wr_copy"
+    );
+    const highlightButton = document.querySelector<HTMLButtonElement>(
+      "button.toolbarItem.underlineBg"
+    );
+    if (!textCopyButton || !highlightButton) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    textCopyButton.click();
+    window.setTimeout(() => highlightButton.click(), 100);
+  },
+  true
+);
+
+new MutationObserver(scheduleInit).observe(document.body, {
+  childList: true,
+  subtree: true,
 });
-
-const observerConfig = { childList: true, subtree: true };
-
-observer.observe(document.body, observerConfig);
+scheduleInit();
