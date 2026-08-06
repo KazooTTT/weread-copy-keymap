@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         在微信读书网页版中新增复制快捷键
 // @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
-// @version      0.0.5
+// @version      0.0.6
 // @author       KazooTTT
 // @description  为微信读书网页版增加复制及复制并高亮快捷键，并支持在大图查看器中复制真实图片或下载原图。
 // @license      MIT
@@ -26,6 +26,9 @@
     const textNode = button == null ? void 0 : button.querySelector(".toolbarItem_text");
     if (!textNode)
       return;
+    textNode.style.display = "flex";
+    textNode.style.flexDirection = "column";
+    textNode.style.alignItems = "center";
     let keyNode = textNode.querySelector(
       ".toolbarItem_text_keymap"
     );
@@ -236,7 +239,7 @@
       initImageActions();
     });
   };
-  document.addEventListener(
+  window.addEventListener(
     "keydown",
     (event) => {
       const hasPrimaryModifier = isMac ? event.metaKey : event.ctrlKey;
@@ -247,9 +250,13 @@
         const imageCopyButton = getVisibleImageCopyButton();
         if (!imageCopyButton)
           return;
+        const viewer = imageCopyButton.closest(".viewer-canvas");
+        const imageUrl = viewer ? getViewerImageUrl(viewer) : "";
+        if (!imageUrl)
+          return;
         event.preventDefault();
         event.stopPropagation();
-        imageCopyButton.click();
+        copyImage(imageUrl, imageCopyButton);
         return;
       }
       if (key !== "x")

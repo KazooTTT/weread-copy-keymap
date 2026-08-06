@@ -20,13 +20,28 @@ assert.match(
 );
 assert.match(
   source,
-  /keyNode\.style\.display = "block"/,
-  "keymap label must start on a new line"
+  /textNode\.style\.flexDirection = "column"/,
+  "keymap container must use a vertical layout"
 );
 assert.match(
   source,
   /if \(keyNode\.textContent !== text\)/,
   "unchanged keymap text must not retrigger the observer"
+);
+assert.match(
+  source,
+  /window\.addEventListener\(\s*"keydown"/,
+  "keyboard shortcuts must run before page-level handlers"
+);
+assert.match(
+  source,
+  /copyImage\(imageUrl, imageCopyButton\)/,
+  "Cmd/Ctrl+C must call clipboard logic directly inside the trusted event"
+);
+assert.doesNotMatch(
+  source,
+  /imageCopyButton\.click\(\)/,
+  "Cmd/Ctrl+C must not proxy clipboard access through a synthetic click"
 );
 
 console.log("PASS: viewer navigation and keymap layout regression checks");

@@ -29,6 +29,10 @@ const addKeyMapTitleToButton = (
   const textNode = button?.querySelector<HTMLElement>(".toolbarItem_text");
   if (!textNode) return;
 
+  textNode.style.display = "flex";
+  textNode.style.flexDirection = "column";
+  textNode.style.alignItems = "center";
+
   let keyNode = textNode.querySelector<HTMLElement>(
     ".toolbarItem_text_keymap"
   );
@@ -269,7 +273,7 @@ const scheduleInit = () => {
   });
 };
 
-document.addEventListener(
+window.addEventListener(
   "keydown",
   (event) => {
     const hasPrimaryModifier = isMac ? event.metaKey : event.ctrlKey;
@@ -281,9 +285,13 @@ document.addEventListener(
       const imageCopyButton = getVisibleImageCopyButton();
       if (!imageCopyButton) return;
 
+      const viewer = imageCopyButton.closest<HTMLElement>(".viewer-canvas");
+      const imageUrl = viewer ? getViewerImageUrl(viewer) : "";
+      if (!imageUrl) return;
+
       event.preventDefault();
       event.stopPropagation();
-      imageCopyButton.click();
+      copyImage(imageUrl, imageCopyButton);
       return;
     }
 
