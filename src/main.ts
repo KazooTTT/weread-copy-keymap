@@ -34,11 +34,14 @@ const addKeyMapTitleToButton = (
   );
   if (!keyNode) {
     keyNode = document.createElement("span");
-    keyNode.className = "toolbarItem_text_keymap";
-    keyNode.style.marginLeft = "2px";
+    keyNode.className = "toolbarItem_text toolbarItem_text_keymap";
+    keyNode.style.display = "block";
+    keyNode.style.whiteSpace = "nowrap";
     textNode.append(keyNode);
   }
-  keyNode.textContent = text;
+  if (keyNode.textContent !== text) {
+    keyNode.textContent = text;
+  }
 };
 
 const initKeyMap = () => {
@@ -201,10 +204,13 @@ const createButton = (text: string, color: string, hoverColor: string) => {
   return button;
 };
 
-const initImageActions = () => {
-  const viewer = document.querySelector<HTMLElement>(".viewer-canvas");
-  const image = viewer?.querySelector<HTMLImageElement>("img");
-  if (!viewer || !image || viewer.querySelector(`.${BUTTON_GROUP_CLASS}`)) {
+const getViewerImageUrl = (viewer: HTMLElement) => {
+  const image = viewer.querySelector<HTMLImageElement>("img");
+  return image?.currentSrc || image?.src || "";
+};
+
+const initViewerImageActions = (viewer: HTMLElement) => {
+  if (!getViewerImageUrl(viewer) || viewer.querySelector(`.${BUTTON_GROUP_CLASS}`)) {
     return;
   }
 
@@ -225,18 +231,33 @@ const initImageActions = () => {
   }
 
   const copyButton = createButton("复制图片", "#388e3c", "#2e7d32");
-  copyButton.addEventListener("click", () =>
-    copyImage(image.currentSrc || image.src, copyButton)
-  );
+  copyButton.addEventListener("click", () => {
+    const imageUrl = getViewerImageUrl(viewer);
+    if (imageUrl) copyImage(imageUrl, copyButton);
+  });
 
   const downloadButton = createButton("下载图片", "#1976d2", "#1565c0");
-  downloadButton.addEventListener("click", () =>
-    downloadImage(image.currentSrc || image.src, downloadButton)
-  );
+  downloadButton.addEventListener("click", () => {
+    const imageUrl = getViewerImageUrl(viewer);
+    if (imageUrl) downloadImage(imageUrl, downloadButton);
+  });
 
   group.append(copyButton, downloadButton);
   viewer.append(group);
 };
+
+const initImageActions = () => {
+  document
+    .querySelectorAll<HTMLElement>(".viewer-canvas")
+    .forEach(initViewerImageActions);
+};
+
+const getVisibleImageCopyButton = () =>
+  Array.from(
+    document.querySelectorAll<HTMLButtonElement>(
+      `.${BUTTON_GROUP_CLASS} button:first-child`
+    )
+  ).find((button) => button.getClientRects().length > 0);
 
 const scheduleInit = () => {
   if (pending) return;
@@ -257,9 +278,7 @@ document.addEventListener(
     const key = event.key.toLowerCase();
 
     if (key === "c") {
-      const imageCopyButton = document.querySelector<HTMLButtonElement>(
-        `.${BUTTON_GROUP_CLASS} button:first-child`
-      );
+      const imageCopyButton = getVisibleImageCopyButton();
       if (!imageCopyButton) return;
 
       event.preventDefault();
@@ -289,5 +308,7 @@ document.addEventListener(
 new MutationObserver(scheduleInit).observe(document.body, {
   childList: true,
   subtree: true,
+  attributes: true,
+  attributeFilter: ["src", "class", "style"],
 });
 scheduleInit();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         在微信读书网页版中新增复制快捷键
 // @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
-// @version      0.0.4
+// @version      0.0.5
 // @author       KazooTTT
 // @description  为微信读书网页版增加复制及复制并高亮快捷键，并支持在大图查看器中复制真实图片或下载原图。
 // @license      MIT
@@ -31,11 +31,14 @@
     );
     if (!keyNode) {
       keyNode = document.createElement("span");
-      keyNode.className = "toolbarItem_text_keymap";
-      keyNode.style.marginLeft = "2px";
+      keyNode.className = "toolbarItem_text toolbarItem_text_keymap";
+      keyNode.style.display = "block";
+      keyNode.style.whiteSpace = "nowrap";
       textNode.append(keyNode);
     }
-    keyNode.textContent = text;
+    if (keyNode.textContent !== text) {
+      keyNode.textContent = text;
+    }
   };
   const initKeyMap = () => {
     addKeyMapTitleToButton(
@@ -178,10 +181,12 @@
     });
     return button;
   };
-  const initImageActions = () => {
-    const viewer = document.querySelector(".viewer-canvas");
-    const image = viewer == null ? void 0 : viewer.querySelector("img");
-    if (!viewer || !image || viewer.querySelector(`.${BUTTON_GROUP_CLASS}`)) {
+  const getViewerImageUrl = (viewer) => {
+    const image = viewer.querySelector("img");
+    return (image == null ? void 0 : image.currentSrc) || (image == null ? void 0 : image.src) || "";
+  };
+  const initViewerImageActions = (viewer) => {
+    if (!getViewerImageUrl(viewer) || viewer.querySelector(`.${BUTTON_GROUP_CLASS}`)) {
       return;
     }
     if (getComputedStyle(viewer).position === "static") {
@@ -199,18 +204,28 @@
       group.addEventListener(type, (event) => event.stopPropagation());
     }
     const copyButton = createButton("复制图片", "#388e3c", "#2e7d32");
-    copyButton.addEventListener(
-      "click",
-      () => copyImage(image.currentSrc || image.src, copyButton)
-    );
+    copyButton.addEventListener("click", () => {
+      const imageUrl = getViewerImageUrl(viewer);
+      if (imageUrl)
+        copyImage(imageUrl, copyButton);
+    });
     const downloadButton = createButton("下载图片", "#1976d2", "#1565c0");
-    downloadButton.addEventListener(
-      "click",
-      () => downloadImage(image.currentSrc || image.src, downloadButton)
-    );
+    downloadButton.addEventListener("click", () => {
+      const imageUrl = getViewerImageUrl(viewer);
+      if (imageUrl)
+        downloadImage(imageUrl, downloadButton);
+    });
     group.append(copyButton, downloadButton);
     viewer.append(group);
   };
+  const initImageActions = () => {
+    document.querySelectorAll(".viewer-canvas").forEach(initViewerImageActions);
+  };
+  const getVisibleImageCopyButton = () => Array.from(
+    document.querySelectorAll(
+      `.${BUTTON_GROUP_CLASS} button:first-child`
+    )
+  ).find((button) => button.getClientRects().length > 0);
   const scheduleInit = () => {
     if (pending)
       return;
@@ -229,9 +244,7 @@
         return;
       const key = event.key.toLowerCase();
       if (key === "c") {
-        const imageCopyButton = document.querySelector(
-          `.${BUTTON_GROUP_CLASS} button:first-child`
-        );
+        const imageCopyButton = getVisibleImageCopyButton();
         if (!imageCopyButton)
           return;
         event.preventDefault();
@@ -258,7 +271,9 @@
   );
   new MutationObserver(scheduleInit).observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src", "class", "style"]
   });
   scheduleInit();
 
