@@ -13,6 +13,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "node scripts/regression-check.mjs",
+    "release:prepare": "pnpm test && pnpm build && git add release/weread-copy-keymap.user.js",
     "release": "bumpp"
   },
   "devDependencies": {

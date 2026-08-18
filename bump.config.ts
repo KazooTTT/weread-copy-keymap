@@ -5,6 +5,5 @@ export default defineConfig({
   commit: "chore: release {tag}",
   tag: "v{version}",
   push: true,
-  execute:
-    "pnpm test && pnpm build && git add release/weread-copy-keymap.user.js",
+  execute: "pnpm release:prepare",
 });
