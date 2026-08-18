@@ -5,5 +5,6 @@ export default defineConfig({
   commit: "chore: release {tag}",
   tag: "v{version}",
   push: true,
+  all: true,
   execute: "pnpm release:prepare",
 });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         在微信读书网页版中新增复制快捷键
 // @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
-// @version      0.0.8
+// @version      0.0.9
 // @author       KazooTTT
 // @description  为微信读书网页版增加复制快捷键、图片操作和豆瓣图书跳转。
 // @license      MIT
