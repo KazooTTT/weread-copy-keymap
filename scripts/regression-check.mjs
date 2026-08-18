@@ -43,5 +43,30 @@ assert.doesNotMatch(
   /imageCopyButton\.click\(\)/,
   "Cmd/Ctrl+C must not proxy clipboard access through a synthetic click"
 );
+assert.match(
+  source,
+  /script\[type=\"application\/ld\+json\"\]/,
+  "the Douban button must read standard book metadata from the page"
+);
+assert.match(
+  source,
+  /const searchText = isbn \|\|/,
+  "ISBN must be preferred over title and author when searching Douban"
+);
+assert.match(
+  source,
+  /return subjectUrls\.size === 1/,
+  "the Douban result must only be opened when its subject URL is unique"
+);
+assert.doesNotMatch(
+  source,
+  /(?:subjectUrls|Array\.from\(subjectUrls\))\s*(?:\[[^\]]*0[^\]]*\]|\.at\(0\))/,
+  "the Douban result must not blindly use list[0]"
+);
+assert.match(
+  source,
+  /initDoubanLink\(\)/,
+  "the Douban button must be initialized with other dynamic reader controls"
+);
 
-console.log("PASS: viewer navigation and keymap layout regression checks");
+console.log("PASS: viewer, keymap, and Douban link regression checks");

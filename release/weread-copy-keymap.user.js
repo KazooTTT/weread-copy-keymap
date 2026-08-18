@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         在微信读书网页版中新增复制快捷键
 // @namespace    https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap
-// @version      0.0.6
+// @version      0.0.7
 // @author       KazooTTT
-// @description  为微信读书网页版增加复制及复制并高亮快捷键，并支持在大图查看器中复制真实图片或下载原图。
+// @description  为微信读书网页版增加复制快捷键、图片操作和豆瓣图书跳转。
 // @license      MIT
 // @icon         https://weread.qq.com/favicon.ico
 // @homepage     https://github.com/KazooTTT/weread-copy-keymap
@@ -11,6 +11,7 @@
 // @match        https://weread.qq.com/web/reader/*
 // @connect      res.weread.qq.com
 // @connect      tencent-cloud.com
+// @connect      search.douban.com
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
@@ -21,6 +22,7 @@
   const COPY_KEY_TEXT = isMac ? "⌘ + C" : "Ctrl + C";
   const COPY_AND_HIGHLIGHT_KEY_TEXT = isMac ? "⌘ + X" : "Ctrl + X";
   const BUTTON_GROUP_CLASS = "wr-img-btn-group";
+  const DOUBAN_BUTTON_ID = "wr-douban-link";
   let pending = false;
   const addKeyMapTitleToButton = (button, text) => {
     const textNode = button == null ? void 0 : button.querySelector(".toolbarItem_text");
@@ -68,6 +70,23 @@
       },
       ontimeout: () => reject(new Error("图片请求超时")),
       onerror: () => reject(new Error("图片请求失败"))
+    });
+  });
+  const requestText = (url) => new Promise((resolve, reject) => {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url,
+      responseType: "text",
+      timeout: 15e3,
+      onload: ({ status, response, responseText }) => {
+        if (status >= 200 && status < 300) {
+          resolve(typeof response === "string" ? response : responseText || "");
+          return;
+        }
+        reject(new Error(`豆瓣搜索失败（HTTP ${status}）`));
+      },
+      ontimeout: () => reject(new Error("豆瓣搜索超时")),
+      onerror: () => reject(new Error("豆瓣搜索失败"))
     });
   });
   const blobToPng = async (sourceBlob) => {
@@ -224,6 +243,100 @@
   const initImageActions = () => {
     document.querySelectorAll(".viewer-canvas").forEach(initViewerImageActions);
   };
+  const getPageTitle = () => {
+    const pageTitle = document.title.replace(/\s*[-–—|]\s*微信读书\s*$/, "").trim();
+    return pageTitle && pageTitle !== "微信读书" ? pageTitle : "";
+  };
+  const getBookMetadata = () => {
+    for (const script of Array.from(
+      document.querySelectorAll('script[type="application/ld+json"]')
+    )) {
+      try {
+        const data = JSON.parse(script.textContent || "");
+        const candidates = Array.isArray(data) ? data : Array.isArray(data == null ? void 0 : data["@graph"]) ? data["@graph"] : [data];
+        const book = candidates.find((item) => (item == null ? void 0 : item["@type"]) === "Book");
+        if (!book)
+          continue;
+        const author = Array.isArray(book.author) ? book.author[0] : book.author;
+        return {
+          name: typeof book.name === "string" ? book.name.trim() : "",
+          author: typeof (author == null ? void 0 : author.name) === "string" ? author.name.trim() : "",
+          isbn: typeof book.isbn === "string" ? book.isbn.trim() : ""
+        };
+      } catch {
+      }
+    }
+    return { name: getPageTitle(), author: "", isbn: "" };
+  };
+  const createDoubanSearchUrl = ({ name, author, isbn }) => {
+    const searchText = isbn || [name, author].filter(Boolean).join(" - ");
+    return searchText ? `https://search.douban.com/book/subject_search?search_text=${encodeURIComponent(searchText)}` : "";
+  };
+  const findUniqueDoubanSubject = (html) => {
+    const document2 = new DOMParser().parseFromString(html, "text/html");
+    const subjectUrls = /* @__PURE__ */ new Set();
+    for (const anchor of Array.from(document2.querySelectorAll("a[href]"))) {
+      try {
+        const url = new URL(anchor.href, "https://search.douban.com");
+        const match = url.pathname.match(/^\/subject\/(\d+)\/?$/);
+        if (url.hostname === "book.douban.com" && match) {
+          subjectUrls.add(`https://book.douban.com/subject/${match[1]}/`);
+        }
+      } catch {
+      }
+    }
+    return subjectUrls.size === 1 ? subjectUrls.values().next().value || "" : "";
+  };
+  const resolveDoubanTarget = async (searchUrl) => {
+    try {
+      return findUniqueDoubanSubject(await requestText(searchUrl)) || searchUrl;
+    } catch (error) {
+      console.error("[Weread Douban search]", error);
+      return searchUrl;
+    }
+  };
+  const initDoubanLink = () => {
+    const book = getBookMetadata();
+    const doubanUrl = createDoubanSearchUrl(book);
+    const existingLink = document.getElementById(DOUBAN_BUTTON_ID);
+    if (!doubanUrl) {
+      existingLink == null ? void 0 : existingLink.remove();
+      return;
+    }
+    if (existingLink instanceof HTMLAnchorElement && existingLink.href === doubanUrl)
+      return;
+    existingLink == null ? void 0 : existingLink.remove();
+    const link = document.createElement("a");
+    link.id = DOUBAN_BUTTON_ID;
+    link.href = doubanUrl;
+    link.target = "wr-douban-target";
+    link.rel = "noopener noreferrer";
+    link.textContent = "去豆瓣查看";
+    link.title = `在豆瓣查找《${book.name || getPageTitle()}》`;
+    link.style.cssText = `
+    position: fixed; top: 18px; right: 72px; z-index: 2147483647;
+    display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+    border-radius: 16px; background: #00a65a; color: #fff;
+    font-size: 13px; font-weight: 500; text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
+  `;
+    link.addEventListener("mouseenter", () => {
+      link.style.background = "#008f4c";
+    });
+    link.addEventListener("mouseleave", () => {
+      link.style.background = "#00a65a";
+    });
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const targetWindow = window.open(doubanUrl, "wr-douban-target");
+      if (!targetWindow)
+        return;
+      resolveDoubanTarget(doubanUrl).then((targetUrl) => {
+        targetWindow.location.href = targetUrl;
+      });
+    });
+    document.body.append(link);
+  };
   const getVisibleImageCopyButton = () => Array.from(
     document.querySelectorAll(
       `.${BUTTON_GROUP_CLASS} button:first-child`
@@ -237,6 +350,7 @@
       pending = false;
       initKeyMap();
       initImageActions();
+      initDoubanLink();
     });
   };
   window.addEventListener(

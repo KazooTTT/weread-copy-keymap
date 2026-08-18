@@ -15,13 +15,13 @@ export default defineConfig({
         namespace:
           "https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap",
         match: ["https://weread.qq.com/web/reader/*"],
-        version: "0.0.6",
+        version: "0.0.7",
         description:
-          "为微信读书网页版增加复制及复制并高亮快捷键，并支持在大图查看器中复制真实图片或下载原图。",
+          "为微信读书网页版增加复制快捷键、图片操作和豆瓣图书跳转。",
         author: "KazooTTT",
         homepage: "https://github.com/KazooTTT/weread-copy-keymap",
         license: "MIT",
-        connect: ["res.weread.qq.com", "tencent-cloud.com"],
+        connect: ["res.weread.qq.com", "tencent-cloud.com", "search.douban.com"],
         grant: ["GM_xmlhttpRequest"],
       },
     }),

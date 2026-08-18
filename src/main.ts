@@ -2,13 +2,14 @@
 
 type GMResponse = {
   status: number;
-  response: Blob;
+  response: Blob | string;
+  responseText?: string;
 };
 
 declare function GM_xmlhttpRequest(details: {
   method: "GET";
   url: string;
-  responseType: "blob";
+  responseType: "blob" | "text";
   timeout: number;
   onload: (response: GMResponse) => void;
   ontimeout: () => void;
@@ -19,6 +20,7 @@ const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
 const COPY_KEY_TEXT = isMac ? "⌘ + C" : "Ctrl + C";
 const COPY_AND_HIGHLIGHT_KEY_TEXT = isMac ? "⌘ + X" : "Ctrl + X";
 const BUTTON_GROUP_CLASS = "wr-img-btn-group";
+const DOUBAN_BUTTON_ID = "wr-douban-link";
 
 let pending = false;
 
@@ -75,6 +77,25 @@ const requestBlob = (url: string) =>
       },
       ontimeout: () => reject(new Error("图片请求超时")),
       onerror: () => reject(new Error("图片请求失败")),
+    });
+  });
+
+const requestText = (url: string) =>
+  new Promise<string>((resolve, reject) => {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url,
+      responseType: "text",
+      timeout: 15_000,
+      onload: ({ status, response, responseText }) => {
+        if (status >= 200 && status < 300) {
+          resolve(typeof response === "string" ? response : responseText || "");
+          return;
+        }
+        reject(new Error(`豆瓣搜索失败（HTTP ${status}）`));
+      },
+      ontimeout: () => reject(new Error("豆瓣搜索超时")),
+      onerror: () => reject(new Error("豆瓣搜索失败")),
     });
   });
 
@@ -256,6 +277,125 @@ const initImageActions = () => {
     .forEach(initViewerImageActions);
 };
 
+type BookMetadata = {
+  name: string;
+  author: string;
+  isbn: string;
+};
+
+const getPageTitle = () => {
+  const pageTitle = document.title
+    .replace(/\s*[-–—|]\s*微信读书\s*$/, "")
+    .trim();
+  return pageTitle && pageTitle !== "微信读书" ? pageTitle : "";
+};
+
+const getBookMetadata = (): BookMetadata => {
+  for (const script of Array.from(
+    document.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]')
+  )) {
+    try {
+      const data = JSON.parse(script.textContent || "");
+      const candidates = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.["@graph"])
+          ? data["@graph"]
+          : [data];
+      const book = candidates.find((item) => item?.["@type"] === "Book");
+      if (!book) continue;
+
+      const author = Array.isArray(book.author) ? book.author[0] : book.author;
+      return {
+        name: typeof book.name === "string" ? book.name.trim() : "",
+        author: typeof author?.name === "string" ? author.name.trim() : "",
+        isbn: typeof book.isbn === "string" ? book.isbn.trim() : "",
+      };
+    } catch {
+      // 忽略无效的 JSON-LD，继续尝试页面中的其他元数据。
+    }
+  }
+  return { name: getPageTitle(), author: "", isbn: "" };
+};
+
+const createDoubanSearchUrl = ({ name, author, isbn }: BookMetadata) => {
+  const searchText = isbn || [name, author].filter(Boolean).join(" - ");
+  return searchText
+    ? `https://search.douban.com/book/subject_search?search_text=${encodeURIComponent(searchText)}`
+    : "";
+};
+
+const findUniqueDoubanSubject = (html: string) => {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  const subjectUrls = new Set<string>();
+
+  for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
+    try {
+      const url = new URL(anchor.href, "https://search.douban.com");
+      const match = url.pathname.match(/^\/subject\/(\d+)\/?$/);
+      if (url.hostname === "book.douban.com" && match) {
+        subjectUrls.add(`https://book.douban.com/subject/${match[1]}/`);
+      }
+    } catch {
+      // 忽略无效链接。
+    }
+  }
+
+  return subjectUrls.size === 1 ? subjectUrls.values().next().value || "" : "";
+};
+
+const resolveDoubanTarget = async (searchUrl: string) => {
+  try {
+    return findUniqueDoubanSubject(await requestText(searchUrl)) || searchUrl;
+  } catch (error) {
+    console.error("[Weread Douban search]", error);
+    return searchUrl;
+  }
+};
+
+const initDoubanLink = () => {
+  const book = getBookMetadata();
+  const doubanUrl = createDoubanSearchUrl(book);
+  const existingLink = document.getElementById(DOUBAN_BUTTON_ID);
+
+  if (!doubanUrl) {
+    existingLink?.remove();
+    return;
+  }
+  if (existingLink instanceof HTMLAnchorElement && existingLink.href === doubanUrl) return;
+  existingLink?.remove();
+
+  const link = document.createElement("a");
+  link.id = DOUBAN_BUTTON_ID;
+  link.href = doubanUrl;
+  link.target = "wr-douban-target";
+  link.rel = "noopener noreferrer";
+  link.textContent = "去豆瓣查看";
+  link.title = `在豆瓣查找《${book.name || getPageTitle()}》`;
+  link.style.cssText = `
+    position: fixed; top: 18px; right: 72px; z-index: 2147483647;
+    display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+    border-radius: 16px; background: #00a65a; color: #fff;
+    font-size: 13px; font-weight: 500; text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
+  `;
+  link.addEventListener("mouseenter", () => {
+    link.style.background = "#008f4c";
+  });
+  link.addEventListener("mouseleave", () => {
+    link.style.background = "#00a65a";
+  });
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    const targetWindow = window.open(doubanUrl, "wr-douban-target");
+    if (!targetWindow) return;
+
+    resolveDoubanTarget(doubanUrl).then((targetUrl) => {
+      targetWindow.location.href = targetUrl;
+    });
+  });
+  document.body.append(link);
+};
+
 const getVisibleImageCopyButton = () =>
   Array.from(
     document.querySelectorAll<HTMLButtonElement>(
@@ -270,6 +410,7 @@ const scheduleInit = () => {
     pending = false;
     initKeyMap();
     initImageActions();
+    initDoubanLink();
   });
 };
 
