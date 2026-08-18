@@ -2,6 +2,7 @@
   "name": "weread-copy-keymap",
   "private": true,
   "version": "0.0.7",
+  "packageManager": "pnpm@10.26.2",
   "type": "module",
   "license": "MIT",
   "author": "KazooTTT",
@@ -11,11 +12,18 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node scripts/regression-check.mjs"
+    "test": "node scripts/regression-check.mjs",
+    "release": "bumpp"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "vite": "^5.2.12",
-    "vite-plugin-monkey": "^4.0.0"
+    "bumpp": "12.2.1",
+    "typescript": "5.4.5",
+    "vite": "5.2.12",
+    "vite-plugin-monkey": "4.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

@@ -29,3 +29,7 @@
 ---
 
 本项目使用模板为 [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey)
+
+## 发布
+
+运行 `pnpm release`，选择新版本号后会自动执行测试和打包，将生成的油猴脚本与版本号一起提交，并推送版本提交及 `v*` 标签。标签推送后，GitHub Actions 会创建 GitHub Release，并上传 `release/weread-copy-keymap.user.js`。

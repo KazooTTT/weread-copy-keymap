@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Verify committed userscript is current
+        run: git diff --exit-code -- release/weread-copy-keymap.user.js
+
+      - name: Create GitHub Release
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          release/weread-copy-keymap.user.js
+          --generate-notes
+          --title "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
