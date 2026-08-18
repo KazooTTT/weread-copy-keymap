@@ -15,7 +15,7 @@ export default defineConfig({
         namespace:
           "https://greasyfork.org/zh-CN/scripts/497102-weread-copy-keymap",
         match: ["https://weread.qq.com/web/reader/*"],
-        version: "0.0.7",
+        version: "0.0.8",
         description:
           "为微信读书网页版增加复制快捷键、图片操作和豆瓣图书跳转。",
         author: "KazooTTT",
